@@ -3,10 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.model_selection import StratifiedKFold
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_curve, roc_auc_score
 
-
-NPZ_PATH = Path("structure_track/features_structure.npz")
-OUT_DIR = Path("structure_track/figures")
+NPZ_PATH = Path("features_structure.npz")
+OUT_DIR = Path("figures")
 
 
 def boxplot_feature(X: np.ndarray, y: np.ndarray, feat_idx: int, title: str, ylabel: str, out_path: Path):
@@ -14,7 +18,7 @@ def boxplot_feature(X: np.ndarray, y: np.ndarray, feat_idx: int, title: str, yla
     x1 = X[y == 1, feat_idx]
 
     plt.figure()
-    plt.boxplot([x0, x1], labels=["0", "1"], showfliers=True)
+    plt.boxplot([x0, x1], tick_labels=["0", "1"], showfliers=True)
     plt.title(title)
     plt.xlabel("Label (0 vs 1)")
     plt.ylabel(ylabel)
@@ -22,6 +26,36 @@ def boxplot_feature(X: np.ndarray, y: np.ndarray, feat_idx: int, title: str, yla
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=200)
     plt.close()
+
+def roc_plot_cv(X: np.ndarray, y: np.ndarray, out_path: Path) -> float:
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    oof_proba = np.zeros(len(y), dtype=float)
+
+    for tr, te in skf.split(X, y):
+        model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("lr", LogisticRegression(max_iter=2000, class_weight="balanced")),
+        ])
+        model.fit(X[tr], y[tr])
+        oof_proba[te] = model.predict_proba(X[te])[:, 1]
+
+    auc = roc_auc_score(y, oof_proba)
+    fpr, tpr, _ = roc_curve(y, oof_proba)
+
+    plt.figure()
+    plt.plot(fpr, tpr, label=f"Structure model (CV OOF) AUC = {auc:.3f}")
+    plt.plot([0, 1], [0, 1], linestyle="--", label="Random")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC Curve (5-fold CV, out-of-fold predictions)")
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=200)
+    plt.close()
+
+    return auc
 
 
 def main():
@@ -31,6 +65,9 @@ def main():
     data = np.load(NPZ_PATH, allow_pickle=True)
     X = data["X"].astype(float)
     y = data["y"].astype(int)
+
+    auc = roc_plot_cv(X, y, OUT_DIR / "roc_structure_cv.png")
+    print(f"Saved ROC curve, AUC = {auc:.3f}")
 
     # Feature order from build_features.py:
     # [plddt, plddt_window_mean, contact_count_8A, mean_neighbor_plddt]

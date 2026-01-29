@@ -9,9 +9,9 @@ from Bio.PDB import PDBParser
 
 
 # Paths (relative to repo root)
-PDB_PATH = Path("data/raw/AF-P00441-F1-model_v6.pdb")
-VARIANTS_CSV = Path("data/variants.csv")
-OUT_NPZ = Path("structure_track/features_structure.npz")
+PDB_PATH = Path("../data/raw/AF-P00441-F1-model_v6.pdb")
+VARIANTS_CSV = Path("../data/variants.csv")
+OUT_NPZ = Path("features_structure.npz")
 
 # Feature hyperparams
 CONTACT_RADIUS_A = 8.0   # CA-CA neighbor radius in Angstrom
